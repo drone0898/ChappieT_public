@@ -1,10 +1,6 @@
 # 채피티
 ![full_ko](https://github.com/drone0898/ChappieT_public/assets/47773972/42c874c8-2387-4cac-bdc7-ac53a11ac32f)
 
-![1_ko](https://github.com/drone0898/ChappieT_public/assets/47773972/81262e85-d160-4806-bce6-b7fb1fd03f7e)
-
-![2_ko](https://github.com/drone0898/ChappieT_public/assets/47773972/34dbb43a-c9de-4cf4-bd27-3936c1cd222e)
-
 ![3_ko](https://github.com/drone0898/ChappieT_public/assets/47773972/cab699e3-8fab-4b5d-8e4b-70056dffcf0b)
 
 ![4_ko](https://github.com/drone0898/ChappieT_public/assets/47773972/73e3137f-6d64-4642-a5c0-01b2eda27536)
