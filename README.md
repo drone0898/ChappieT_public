@@ -18,6 +18,17 @@
 채피티 ChappieT - 당신의 인공지능 도우미
 </div>
 
+## 시연 영상
+
+
+https://github.com/drone0898/ChappieT_public/assets/47773972/35a48b39-ea5b-4803-ba81-e5be45954187
+
+
+
+https://github.com/drone0898/ChappieT_public/assets/47773972/779f6e73-6988-4a2d-8284-41b261f6ac95
+
+
+
 ## 관련 기술
   - `Android`, `MVVM`, `Kotlin`, `Hilt`, `Jetpack Compose`
 
