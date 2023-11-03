@@ -15,8 +15,10 @@
 
 
 <div align="center">
-채피티 ChappieT - 당신의 인공지능 도우미
+채피티 ChappieT - 당신의 인공지능 도우미 
 </div>
+
+[플레이 스토어](https://play.google.com/store/apps/details?id=kr.com.chappiet)
 
 ## 시연 영상
 
