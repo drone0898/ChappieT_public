@@ -18,9 +18,7 @@
 채피티 ChappieT - 당신의 인공지능 도우미 
 </div>
 
-<div align="center">
 [플레이 스토어 앱 다운로드](https://play.google.com/store/apps/details?id=kr.com.chappiet)
-</div>
 
 
 ## 시연 영상
