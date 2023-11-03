@@ -18,7 +18,10 @@
 채피티 ChappieT - 당신의 인공지능 도우미 
 </div>
 
-[플레이 스토어](https://play.google.com/store/apps/details?id=kr.com.chappiet)
+<div align="center">
+[플레이 스토어 앱 다운로드](https://play.google.com/store/apps/details?id=kr.com.chappiet)
+</div>
+
 
 ## 시연 영상
 
@@ -43,11 +46,6 @@ https://github.com/drone0898/ChappieT_public/assets/47773972/779f6e73-6988-4a2d-
 
 Android Audio Playback Capture API, VAD를 활용해 앱에서 재생중인 음성을 인식하고 녹음합니다.
 open-ai Whisper API를 이용해 음성을 문자로 만듭니다. 이를 한국어로 번역해 사용자의 화면위에 표시해줍니다.
-
-
-### 유튜브 영상 요약
-
-open-ai chatGPT API를 활용해, 유튜브 영상의 내용을 요약합니다.
 
 
 
