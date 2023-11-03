@@ -21,7 +21,10 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.retryWhen
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -38,6 +41,7 @@ import kr.com.chappiet.data.model.asAppSettings
 import kr.com.chappiet.data.model.asChappieTAppTranslateSettings
 import kr.com.chappiet.data.model.asGooglePaymentProduct
 import kr.com.chappiet.data.model.asUser
+import kr.com.chappiet.data.remote.ApiResult
 import kr.com.chappiet.data.remote.onError
 import kr.com.chappiet.data.remote.onException
 import kr.com.chappiet.data.remote.onFailure
@@ -54,10 +58,12 @@ import kr.com.chappiet.domain.OpenAIRepository
 import kr.com.chappiet.ui.activity.AppInfo
 import kr.com.chappiet.ui.component.BottomSheetItemType
 import kr.com.chappiet.util.TOOL_DEEPL
+import kr.com.chappiet.util.TOOL_DEEPL_PRO
 import kr.com.chappiet.util.TOOL_GPT
 import kr.com.chappiet.util.listOfSourceLanguages
 import kr.com.chappiet.util.listOfTargetLanguages
 import kr.com.chappiet.util.listOfTranslateTools
+import kr.com.chappiet.util.throttleFirst
 import kr.com.chappiet.vm.RequestToActivity.RequestType
 import timber.log.Timber
 import java.time.LocalDate
@@ -97,7 +103,8 @@ class MainViewModel @Inject constructor(
     private val _googlePaymentProductList = MutableStateFlow<List<GooglePaymentProduct>?>(null)
     val googlePaymentProductList = _googlePaymentProductList.asStateFlow()
 
-    private val updateAuthTrigger = MutableSharedFlow<Unit>()
+    private val updateTrigger = MutableSharedFlow<Unit>()
+    private var updateFirstTime = true
 
     init {
         viewModelScope.launch {
@@ -143,30 +150,83 @@ class MainViewModel @Inject constructor(
                 }
             }
             launch {
-                var firstTime = true
-                updateAuthTrigger
-                    .debounce(if(firstTime) 0L else 30000)
+                updateTrigger
+                    .throttleFirst(30000)
                     .collect {
-                        firstTime = false
-                        updateAuthInternal()
+                        updateInternal()
                     }
             }
         }
     }
 
-    private fun updateAuthInternal() {
-        ....
+    private fun updateInternal() {
+        viewModelScope.launch(Dispatchers.IO) {
+            delay(500)
+            firebaseAuthRepository.startAuth().currentUser?.let { fbUser ->
+                fireStoreRepository.readUser(fbUser.uid).collect {
+                    ....
+                }
+            }
+        }
+        checkToolFreeUse()
     }
 
-    /**
-     * debounce update auth
-     */
-    fun updateAuth() {
-        viewModelScope.launch {
-            updateAuthTrigger.emit(Unit)
+    private fun checkToolFreeUse() {
+        viewModelScope.launch (Dispatchers.IO) {
+            when(appTranslateSettings.value.translateTool) {
+                TOOL_GPT -> {
+                    suspendSetUiState(translateToolFreeUse = true, checkTranslateToolFreeUse = false)
+                }
+                TOOL_DEEPL -> {
+                    suspendSetUiState(translateToolFreeUse = false, checkTranslateToolFreeUse = true)
+                    apiKeyProvider.defaultDeeplAuthKey?.let {
+                        networkRepository.deepLCheckUsageRequest(it).collect { result ->
+                            result.onSuccess { c->
+                                suspendSetUiState(
+                                    checkTranslateToolFreeUse = false,
+                                    translateToolFreeUse = c.characterCount * 10 <= c.characterLimit * 9)
+                            }
+                            result.onFailure {
+                                suspendSetUiState(checkTranslateToolFreeUse = false,
+                                    translateToolFreeUse = false)
+                            }
+                        }
+                    } ?: run {
+                        suspendSetUiState(checkTranslateToolFreeUse = false)
+                    }
+                }
+                TOOL_DEEPL_PRO -> {
+                    suspendSetUiState(translateToolFreeUse = false, checkTranslateToolFreeUse = true)
+                    apiKeyProvider.defaultDeeplProAuthKey?.let {
+                        networkRepository.deepLProCheckUsageRequest(it).collect { result ->
+                            result.onSuccess { c->
+                                suspendSetUiState(checkTranslateToolFreeUse = false,
+                                    translateToolFreeUse =  c.characterCount * 10 <= c.characterLimit * 9)
+                            }
+                            result.onFailure {
+                                suspendSetUiState(checkTranslateToolFreeUse = false,
+                                    translateToolFreeUse = false)
+                            }
+                        }
+                    } ?: run {
+                        suspendSetUiState(checkTranslateToolFreeUse = false)
+                    }
+                }
+                else -> {
+                    suspendSetUiState(translateToolFreeUse = true, checkTranslateToolFreeUse = false)
+                }
+            }
         }
     }
 
+    /**
+     * throttleFirst update auth
+     */
+    fun updateAuth() {
+        viewModelScope.launch {
+            updateTrigger.emit(Unit)
+        }
+    }
     suspend fun suspendSetUiState(
         user: User? = this.uiState.value.user,
         addApiKey: ApiKey = this.uiState.value.addApiKey,
@@ -178,7 +238,9 @@ class MainViewModel @Inject constructor(
         toastMessage: Int? = this.uiState.value.toastMessage,
         toastParam: String? = this.uiState.value.toastParam,
         error: String? = this.uiState.value.error,
-        loading: Boolean = this.uiState.value.loading
+        loading: Boolean = this.uiState.value.loading,
+        translateToolFreeUse: Boolean = this.uiState.value.translateToolFreeUse,
+        checkTranslateToolFreeUse: Boolean = this.uiState.value.checkTranslateToolFreeUse,
     ) {
         withContext(Dispatchers.Main) {
             setUiState(
@@ -192,7 +254,9 @@ class MainViewModel @Inject constructor(
                 toastMessage = toastMessage,
                 toastParam = toastParam,
                 error = error,
-                loading = loading
+                loading = loading,
+                translateToolFreeUse = translateToolFreeUse,
+                checkTranslateToolFreeUse = checkTranslateToolFreeUse
             )
         }
     }
@@ -207,7 +271,9 @@ class MainViewModel @Inject constructor(
         toastMessage: Int? = this.uiState.value.toastMessage,
         toastParam: String? = this.uiState.value.toastParam,
         error: String? = this.uiState.value.error,
-        loading: Boolean = this.uiState.value.loading
+        loading: Boolean = this.uiState.value.loading,
+        translateToolFreeUse: Boolean = this.uiState.value.translateToolFreeUse,
+        checkTranslateToolFreeUse: Boolean = this.uiState.value.checkTranslateToolFreeUse,
     ) {
         _uiState.value = uiState.value.copy(
             user = user,
@@ -220,7 +286,9 @@ class MainViewModel @Inject constructor(
             toastMessage = toastMessage,
             toastParam = toastParam,
             error = error,
-            loading = loading
+            loading = loading,
+            translateToolFreeUse = translateToolFreeUse,
+            checkTranslateToolFreeUse = checkTranslateToolFreeUse
         )
     }
     fun setPopUpUiState(
@@ -354,6 +422,7 @@ class MainViewModel @Inject constructor(
                             ))
                         }
                     }
+                    checkToolFreeUse()
                 }
             }
 
@@ -402,7 +471,22 @@ class MainViewModel @Inject constructor(
     }
 
     fun onSignInResult(result: FirebaseAuthUIAuthenticationResult) {
-        ....
+        viewModelScope.launch(Dispatchers.IO) {
+            if (result.resultCode == AppCompatActivity.RESULT_OK) {
+                // Successfully signed in
+                val firebaseUser = firebaseAuthRepository.getAuth().currentUser
+                firebaseUser?.uid?.let { uid ->
+                    fireStoreRepository.readUser(uid).collect {
+                        ...
+                    }
+                }
+
+            } else {
+                // Sign in failed. If response is null the user canceled the
+                // sign-in flow using the back button. Otherwise check
+                // response.getError().getErrorCode() and handle the error.
+            }
+        }
     }
 
     fun signUpRequest(email:String?, displayName: String?, phone: String?, firebaseUser: FirebaseUser?,
@@ -412,12 +496,7 @@ class MainViewModel @Inject constructor(
         firebaseUser?.getIdToken(true)?.addOnCompleteListener { task ->
             task.result?.token?.let { it ->
                 viewModelScope.launch(Dispatchers.IO) {
-                    networkRepository.chappieTSignUpRequest(
-                        it,
-                        firebaseUser.asUser(email,displayName,phone)
-                    ).collect { result ->
-                        ....
-                    }
+                    ...
                 }
             } ?: run {
                 setUiState(loading = false)
@@ -427,7 +506,8 @@ class MainViewModel @Inject constructor(
     fun purchaseVerify(purchases: List<Purchase>, callBack: () -> Unit) {
         viewModelScope.launch (Dispatchers.IO) {
             firebaseAuthRepository.getIdToken()?.let {
-                ....
+                ...
+                }
             } ?: run {
                 callBack()
             }
@@ -439,37 +519,7 @@ class MainViewModel @Inject constructor(
         viewModelScope.launch {
             suspendSetUiState(loading = true)
             firebaseAuthRepository.getIdToken()?.let {
-                networkRepository.chappieTRegistPromotion(
-                    it,
-                    promotionId
-                ).collect {result ->
-                    result.onSuccess { res ->
-                        updateAuth()
-                        suspendSetUiState(loading = false)
-                        if(res.success) {
-                            setPopUpUiState(
-                                showPopup = true,
-                                popUpTitle = "[${res.promotion?.content}]",
-                                popUpContent = res.message
-                            )
-                        } else {
-                            setPopUpUiState(
-                                showPopup = true,
-                                popUpTitle = errorTitle,
-                                popUpContent = res.message
-                            )
-                        }
-                    }
-                    result.onFailure { fail->
-                        updateAuth()
-                        suspendSetUiState(loading = false)
-                        setPopUpUiState(
-                            showPopup = true,
-                            popUpTitle = errorTitle,
-                            popUpContent = fail.message
-                        )
-                    }
-                }
+                ...
             } ?: kotlin.run {
                 suspendSetUiState(loading = false)
                 suspendSetRequest(RequestType.REQUEST_NEED_RE_LOGIN_POPUP)
@@ -664,6 +714,11 @@ class MainViewModel @Inject constructor(
 
 /**
  * ui 상태 클래스
+ * @param loading : 백그라운드 dim 로딩상태
+ *
+ * also check
+ * @see MainViewModel.suspendSetUiState
+ * @see MainViewModel.setUiState
  */
 data class ChappieTHomeUIState(
     val user: User? = null,
@@ -674,6 +729,8 @@ data class ChappieTHomeUIState(
     val sheetType: BottomSheetItemType? = null,
     val sheetItemList: List<Pair<Any, String>>? = null,
     val loading: Boolean = false,
+    val translateToolFreeUse: Boolean = false,
+    val checkTranslateToolFreeUse: Boolean = false,
     val error: String? = null,
     val toastMessage: Int? = null,
     val toastParam: String? = null
@@ -762,7 +819,5 @@ data class ChappieTAppTranslateSettings(
         const val NOISE_CANCEL_DEFAULT = false
         const val VOICE_FILTER_DEFAULT = false
         const val GPT_TRANSLATE_OPTION_PROMPT_DEFAULT = "Your only tasks are to naturally translate to @{targetLanguage} and to correct any transcription errors"
-        // Your tasks are to naturally translate to @{targetLanguage} and to correct any transcription errors 18tokens
-        // Naturally translate to @{targetLanguage} and correct any transcription errors 13tokens
     }
 }

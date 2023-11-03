@@ -435,6 +435,17 @@ internal fun maskLastCharacters(input: String, mask:Int): String {
 @Composable
 fun ApiCardPreview() {
     Column (Modifier.background(white)) {
+//        ApiKeyCard(name = "API KEY NAME",
+//            key = "sk-abcdeflaHqn2lPfFZFzIRT3BlbkFJHMT9FFqp2j4BhNdsmfgeabcdef",
+//            type = "DeepL",
+//            onCheckedChange = {})
+//        ApiKeyCard(name = "API KEY NAME",
+//            enabled = true,
+//            key = "sk-abcdeflaHqn2lPfFZFzIRT3BlbkFJHMT9FFqp2j4BhNdsmfgeabcdef",
+//            type = "DeepL",
+//            onCheckedChange = {})
+//        AlertCard(text = "등록된 API Key가 없어요")
+//        StepIndicator(step = 1, maxStep = 3)
         PromotionCard(name = "API 등록", content = "API 등록", expiredDate = "2023/03/21")
         PromotionCard(name = "API 등록", content = "API 등록", expiredDate = "2023/03/21",
             enabled = false)
